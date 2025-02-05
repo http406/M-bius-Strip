@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Möbius Strip</title>
+        <style>
+            body {
+                background-color: #fff; 
+                font-family: Arial, sans-serif;
+                margin: 0;
+                overflow: hidden;
+            }
+
+            canvas {
+                display: block;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: #fff; 
+            }
+            
+            /* Info Button */
+        #infoButton {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #000;
+            color: #fff;
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.3s;
+        }
+
+        #infoButton:hover {
+            background: #333;
+        }
+
+        /* Modal Popup */
+        #infoModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 400px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        #infoModal h2 {
+            margin-top: 0;
+            font-size: 20px;
+        }
+
+        #infoModal p {
+            font-size: 14px;
+            color: #444;
+            line-height: 1.5;
+        }
+
+        #closeModal {
+            background: #000;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-top: 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #closeModal:hover {
+            background: #333;
+        }
+
+        /* Modal Background */
+        #modalBackground {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"></canvas>
+        
+         <!-- Info Button -->
+    <button id="infoButton">&#9432;</button>
+
+    <!-- Modal Popup -->
+    <div id="modalBackground"></div>
+    <div id="infoModal">
+        <h2>Möbius Strip</h2>
+        <p>This animation visualizes a Möbius strip, a non-orientable surface with only one side and one edge.</p>
+        <p><strong>Instructions:</strong></p>
+        <p>Move your mouse or Touch randomly over the canvas to rotate the strip. The colors cycle smoothly to create a mesmerizing effect. The black outlines help distinguish different portions of the strip.</p>
+        <button id="closeModal">Close</button>
+    </div>
+    
+        <script>
+            var canvas = document.getElementById("canvas");
+            var ctx = canvas.getContext("2d");
+
+            var cw = canvas.width = window.innerWidth;
+            var ch = canvas.height = window.innerHeight;
+            var cx = cw / 2;
+            var cy = ch / 2;
+
+            var points = [];
+            var triangles = [];
+            var scl = 3;
+            var speed = .0001;
+
+            var m = { x: 200, y: 100 };
+            var r = 70;
+            var v = -.7 * r;
+
+            function Point(x, y, z) {
+                this.x = x * scl;
+                this.y = y * scl;
+                this.z = z * scl;
+                this.fl = 250;
+                this.vpX = 0;
+                this.vpY = 0;
+                this.cX = 0;
+                this.cY = 0;
+                this.cZ = 0;
+
+                this.setVanishingPoint = function(vpX, vpY) {
+                    this.vpX = vpX;
+                    this.vpY = vpY;
+                };
+
+                this.setCenter = function(cX, cY, cZ) {
+                    this.cX = cX;
+                    this.cY = cY;
+                    this.cZ = cZ;
+                };
+
+                this.rotateX = function(angle) {
+                    var cos = Math.cos(angle);
+                    var sin = Math.sin(angle);
+                    var y1 = this.y * cos - this.z * sin;
+                    var z1 = this.z * cos + this.y * sin;
+                    this.y = y1;
+                    this.z = z1;
+                };
+
+                this.rotateY = function(angle) {
+                    var cos = Math.cos(angle);
+                    var sin = Math.sin(angle);
+                    var x1 = this.x * cos - this.z * sin;
+                    var z1 = this.z * cos + this.x * sin;
+                    this.x = x1;
+                    this.z = z1;
+                };
+
+                this.getScreenX = function() {
+                    var scale = this.fl / (this.fl + this.z + this.cZ);
+                    return this.vpX + (this.cX + this.x) * scale;
+                };
+
+                this.getScreenY = function() {
+                    var scale = this.fl / (this.fl + this.z + this.cZ);
+                    return this.vpY + (this.cY + this.y) * scale;
+                };
+
+                this.update = function(ax, ay) {
+                    this.rotateX(ax);
+                    this.rotateY(ay);
+                };
+            }
+
+            function Triangle(a, b, c, color) {
+                this.pointA = a;
+                this.pointB = b;
+                this.pointC = c;
+                this.color = color;
+
+                this.draw = function() {
+                    ctx.save();
+                    ctx.fillStyle = this.color;
+                    ctx.strokeStyle = "#000"; // Black Outline
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(this.pointA.getScreenX(), this.pointA.getScreenY());
+                    ctx.lineTo(this.pointB.getScreenX(), this.pointB.getScreenY());
+                    ctx.lineTo(this.pointC.getScreenX(), this.pointC.getScreenY());
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke(); // Black outline
+                    ctx.restore();
+                };
+
+                this.getDepth = function() {
+                    return Math.min(this.pointA.z, this.pointB.z, this.pointC.z);
+                };
+            }
+
+            function depth(a, b) {
+                return (b.getDepth() - a.getDepth());
+            }
+
+            // Generate Möbius strip points
+            for (var u = 0; u <= 2 * Math.PI; u += .1) {
+                var x = (r + .5 * v * Math.cos(.5 * u)) * Math.cos(u);
+                var y = (r + .5 * v * Math.cos(.5 * u)) * Math.sin(u);
+                var z = .5 * v * Math.sin(.5 * u);
+                var point = new Point(x, y, z);
+                points.push(point);
+
+                var _u = u + 2 * Math.PI;
+                var _x = (r + .5 * v * Math.cos(.5 * _u)) * Math.cos(_u);
+                var _y = (r + .5 * v * Math.cos(.5 * _u)) * Math.sin(_u);
+                var _z = .5 * v * Math.sin(.5 * _u);
+                var _point = new Point(_x, _y, _z);
+                points.push(_point);
+            }
+
+            // Generate triangles with different colors
+            for (var i = 0; i <= points.length - 2; i += 2) {
+                var hue = (i / points.length) * 360; // Gradient effect
+                var color = `hsl(${hue}, 80%, 50%)`; // Bright colors
+
+                var v1 = points[i];
+                var v2 = points[i + 1];
+                var v3, v4;
+
+                if (i == points.length - 2) {
+                    v3 = points[1];
+                    v4 = points[0];
+                } else {
+                    v3 = points[i + 2];
+                    v4 = points[i + 3];
+                }
+
+                var t = new Triangle(v1, v4, v2, color);
+                var _t = new Triangle(v1, v3, v4, color);
+
+                triangles.push(t);
+                triangles.push(_t);
+            }
+
+            for (var i = 0; i < points.length; i++) {
+                points[i].setVanishingPoint(cx, cy);
+                points[i].setCenter(0, 0, 200);
+            }
+
+            function Draw() {
+                requestId = window.requestAnimationFrame(Draw);
+                ctx.clearRect(0, 0, cw, ch);
+
+                var ay = (m.x - cx) * speed;
+                var ax = (m.y - cy) * speed;
+
+                for (var i = 0; i < points.length; i++) {
+                    points[i].update(ax, ay);
+                }
+
+                triangles.sort(depth);
+
+                for (var i = 0; i < triangles.length; i++) {
+                    triangles[i].draw();
+                }
+            }
+
+            requestId = window.requestAnimationFrame(Draw);
+
+            canvas.addEventListener('mousemove', function(evt) {
+                m = oMousePos(canvas, evt);
+            }, false);
+
+            function oMousePos(canvas, evt) {
+                var rect = canvas.getBoundingClientRect();
+                return {
+                    x: Math.round(evt.clientX - rect.left),
+                    y: Math.round(evt.clientY - rect.top)
+                };
+            }
+            
+            
+            // Info Button Functionality
+        document.getElementById("infoButton").addEventListener("click", function() {
+            document.getElementById("infoModal").style.display = "block";
+            document.getElementById("modalBackground").style.display = "block";
+        });
+
+        document.getElementById("closeModal").addEventListener("click", function() {
+            document.getElementById("infoModal").style.display = "none";
+            document.getElementById("modalBackground").style.display = "none";
+        });
+
+            // Resize canvas on window resize
+            window.addEventListener('resize', function() {
+                cw = canvas.width = window.innerWidth;
+                ch = canvas.height = window.innerHeight;
+                cx = cw / 2;
+                cy = ch / 2;
+                for (var i = 0; i < points.length; i++) {
+                    points[i].setVanishingPoint(cx, cy);
+                }
+            });
+        </script>
+    </body>
+  </html>
+      
